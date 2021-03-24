@@ -1,2 +1,3 @@
-# celantur-examples
-Example code to use Celantur
+# Celantur: Code Samples 
+
+Here, you find code samples on using Celantur.

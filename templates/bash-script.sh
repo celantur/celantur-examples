@@ -14,7 +14,7 @@ usage: $PROG [options]
     -h      Displays help
     -a      Option with argument (default: ${PARAM1})
     -b      Another option with argument (required, no default)
-    -c      Flag with out argument
+    -c      Flag without argument
 EOF
 }
 
@@ -40,4 +40,19 @@ echo "-a is ${PARAM1}"
 echo "-b is ${PARAM2}"
 [[ $PARAM3 ]] && echo "-c is set" || echo "-c is not set" 
 
-echo "TODO: Logic!"  # Hic sunt dracones
+while 'true'
+do
+  read -p "Please enter 'yes' or 'no': "
+  if [[ ${REPLY//[$'\t\r\n ']} = 'no' ]]
+  then
+    echo "Operation aborted by customer"
+    exit 1
+  elif [[ ${REPLY//[$'\t\r\n ']} = 'yes' ]]
+  then
+    echo "TODO: Logic!"  # Hic sunt dracones
+    break
+  fi
+done
+
+
+

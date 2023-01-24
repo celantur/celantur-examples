@@ -1,10 +1,10 @@
 import requests
 import time
 
-ENDPOINT_LOGIN = 'https://71pukv6wu8.execute-api.eu-central-1.amazonaws.com/prod/v1/signin'
-ENDPOINT_FILE_GET = 'https://71pukv6wu8.execute-api.eu-central-1.amazonaws.com/prod/v1/file/'
-ENDPOINT_FILE_STATUS = 'https://71pukv6wu8.execute-api.eu-central-1.amazonaws.com/prod/v1/file/'
-IMAGE_FILE_NAME = 'G0041787.JPG'
+ENDPOINT_LOGIN = 'https://api.celantur.com/v1/signin'
+ENDPOINT_FILE_GET = 'https://api.celantur.com/v1/file/'
+ENDPOINT_FILE_STATUS = 'https://api.celantur.com/v1/file/'
+IMAGE_FILE_NAME = 'image.jpg'
 
 #
 # CELANTUR Cloud API Demo
@@ -44,7 +44,7 @@ def load_image():
 
 def send_image(image, auth_token):
   file_id = ''
-  image_upload_url = 'https://71pukv6wu8.execute-api.eu-central-1.amazonaws.com/prod/v1/file?method=blur&license_plate=True&face=True&name=example.jpg' # &debug=True&score=True
+  image_upload_url = 'https://api.celantur.com/v1/file?method=blur&face=True&name=test.jpg'
   try:
     print('Sending image to API ...')
     response = requests.post(image_upload_url, data=image, headers={'Authorization': auth_token})
@@ -76,7 +76,7 @@ def receive_image(file_id, auth_token):
   
   image_get_response = requests.get(image_get_link, headers={'Authorization': auth_token})
   
-  with open('result.JPG', 'wb') as f:
+  with open('result.jpg', 'wb') as f:
     f.write(image_get_response.content)
     print('Anonymized image received 👍')
   

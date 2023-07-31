@@ -259,5 +259,5 @@ if __name__ == "__main__":
 
     # Calculate the elapsed time
     elapsed_time = end_time - start_time
-    logger.info(f"Load testing completed. It took {int(elapsed_time)} seconds ({elapsed_time//60} minutes)")
+    logger.info(f"Completed. It took {int(elapsed_time)} seconds ({elapsed_time//60} minutes)")
 

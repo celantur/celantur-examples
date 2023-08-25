@@ -99,9 +99,9 @@ def authenticate():
   response = requests.post(ENDPOINT_LOGIN, json=data, headers={'Content-Type':'application/json'})
   resp_dict = response.json()
   try:
-    auth_token = resp_dict['AuthenticationResult']['AccessToken']
+    auth_token = resp_dict['AccessToken']
     # TODO implement logic for token renewal before expiration
-    # expires_in = resp_dict['AuthenticationResult']['ExpiresIn']  # 3600s
+    # expires_in = resp_dict['ExpiresIn']  # 3600s
     logger.info('🔒 Successfully authenticated and token received.')
     return auth_token
   except:

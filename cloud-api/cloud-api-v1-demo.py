@@ -27,7 +27,7 @@ def set_up():
   f.close()
   response = requests.post(ENDPOINT_LOGIN, json=data, headers={'Content-Type':'application/json'})
   resp_dict = response.json()
-  auth_token = resp_dict['AuthenticationResult']['AccessToken']
+  auth_token = resp_dict['AccessToken']
   print('Successfully authenticated and token received 🔒: ' + ENDPOINT_LOGIN)
   return auth_token
 

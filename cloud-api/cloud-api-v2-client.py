@@ -102,7 +102,7 @@ def authenticate():
     auth_token = resp_dict['AccessToken']
     # TODO implement logic for token renewal before expiration
     # expires_in = resp_dict['ExpiresIn']  # 3600s
-    logger.info('🔒 Successfully authenticated and token received.')
+    logger.info('Successfully authenticated and token received.')
     return auth_token
   except:
      logger.error(f'Login error (Status {response.status_code}): {response.text}')
@@ -116,7 +116,7 @@ def load_image(file_path: str):
     image_file = open(file_path,'rb')
     image = image_file.read()
     image_file.close()
-    logger.debug(f'🖼️ Image loaded: {file_path}.')
+    logger.debug(f'Image loaded: {file_path}.')
   except Exception as e:
     logger.info(f'Could not read image: {e}')
   return image
@@ -170,7 +170,7 @@ def upload_image(file_path: str, upload_url: str):
   img = load_image(file_path)
   response = requests.put(url=upload_url, data=img)
   if response.status_code == 200:
-    logger.info(f'⬆️ Uploaded image {file_path} successfully.')
+    logger.info(f'Uploaded image {file_path} successfully.')
     return True
   else:
     logger.error(f'Image upload failed (Status {response.status_code}): {response.text}')
@@ -198,7 +198,7 @@ def download_image(output_file_name: str, task_id: str, auth_token: str, sleep_t
   os.makedirs(os.path.dirname(output_file_name), exist_ok=True)  
   with open(output_file_name, 'wb') as f:
     f.write(response.content)
-  logger.info(f'[image {total_count}] Anonymized image {output_file_name} received 👍.')
+  logger.info(f'[image {total_count}] Anonymized image {output_file_name} received.')
   logger.info(f'Task {task_id} completed.')
 
 def run_test(input_queue: queue.Queue, output_folder: str, anonymisation_configuration: dict):

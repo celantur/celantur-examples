@@ -10,9 +10,7 @@ import queue
 import argparse
 
 
-NUM_THREADS = 30  # Number of threads
 TASKS_PER_AUTHENTICATION = 50 # Number of tasks before re-authentication
-
 SLEEP_TIME = 10.0 # seconds wait time between querying request
 MAX_CHECK_STATUS = 1000 # Retry 1000 times to check status before stopping
 USERNAME: str
@@ -28,8 +26,8 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("-p", "--password", help="Password for Celantur Cloud API", required=True)
     parser.add_argument("-c", "--configuration", help="Anonymisation configuration as JSON file", required=True)
     parser.add_argument("-e", "--endpoint", help="Celantur Cloud API v2 endpoint", default='https://api.celantur.com/v2/')
+    parser.add_argument("--number-threads", help="Number of parallel threads", type=int, default=30)
     return parser
-
 
 
 def setup_logger(log_dir='logs'):
@@ -73,13 +71,17 @@ logger = setup_logger()
 def get_files_from_(root_path: str, relative_path: str = "") -> str:
     path = os.path.join(root_path, relative_path)
     extensions = ['.jpg', '.jpeg', '.png']
-    for file in os.scandir(path):
-        if os.path.isfile(file) and os.path.splitext(file)[1].lower() in extensions:
-            yield os.path.join(relative_path, file.name)
-        elif os.path.isdir(file):
-            yield from get_files_from_(root_path, os.path.join(relative_path, file.name))
+    
+    try:
+      for file in os.scandir(path):
+          if os.path.isfile(file) and os.path.splitext(file)[1].lower() in extensions:
+              yield os.path.join(relative_path, file.name)
+          elif os.path.isdir(file):
+              yield from get_files_from_(root_path, os.path.join(relative_path, file.name))
 
-
+    except FileNotFoundError as e:
+       logger.error(e)
+       raise SystemExit(-1)
 def get_files_without_overwrite_from_(root_input_path: str, root_output_path: str, input_queue: queue.Queue):
     """
     Put input file paths into the queue
@@ -111,15 +113,14 @@ def authenticate():
 
 
 def load_image(file_path: str):
-  image = ''
   try:
     image_file = open(file_path,'rb')
     image = image_file.read()
     image_file.close()
     logger.debug(f'Image loaded: {file_path}.')
+    return image
   except Exception as e:
-    logger.info(f'Could not read image: {e}')
-  return image
+    logger.error(f'Could not read image: {e}')
 
 
 def create_task(anonymisation_configuration: str, auth_token: str):
@@ -137,7 +138,7 @@ def create_task(anonymisation_configuration: str, auth_token: str):
     logger.error(f'Creating task failed (Status {response.status_code}): {response.text}')
 
 
-def get_task_status(task_id: str, auth_token: str):
+def get_task_status(task_id: str, auth_token: str) -> str:
   # stati: new, queued, processing, done or failed
   status_url = f'{ENDPOINT_TASK}{task_id}/status'
 
@@ -157,9 +158,9 @@ def get_task(task_id: str, auth_token: str):
   task_url = f'{ENDPOINT_TASK}{task_id}'
 
   response = requests.get(task_url, headers={'Authorization': auth_token})  
-  response_body = response.json()
   if response.status_code == 200:
     logger.info(f'GET /task/{task_id} successful.')
+    response_body = response.json()
     return response_body
   else:
     logger.error(f'Getting task faild (Status {response.status_code}): {response.text}')
@@ -200,6 +201,7 @@ def download_image(output_file_name: str, task_id: str, auth_token: str, sleep_t
     f.write(response.content)
   logger.info(f'[image {total_count}] Anonymized image {output_file_name} received.')
   logger.info(f'Task {task_id} completed.')
+
 
 def run_test(input_queue: queue.Queue, output_folder: str, anonymisation_configuration: dict):
   global auth_token, total_count
@@ -243,7 +245,7 @@ if __name__ == "__main__":
     PASSWORD = args.password
     
 
-    logger.info(f"Start Cloud API v2 Client with {NUM_THREADS} threads.")
+    logger.info(f"Start Cloud API v2 Client with {args.number_threads} threads.")
 
     input_queue = queue.Queue(maxsize=100)
     file_reader = threading.Thread(name="ReadInput", target=get_files_without_overwrite_from_, args=(args.input, args.output, input_queue))
@@ -251,7 +253,7 @@ if __name__ == "__main__":
 
     auth_token = authenticate()
 
-    threads = [create_thread(input_queue, args.output, configuration) for _ in range(NUM_THREADS)]
+    threads = [create_thread(input_queue, args.output, configuration) for _ in range(args.number_threads)]
     for t in threads:
         t.join()
     file_reader.join()

@@ -29,7 +29,7 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("-c", "--configuration", help="Anonymisation configuration as JSON file", required=True)
     parser.add_argument("-e", "--endpoint", help="Celantur Cloud API v2 endpoint", default='https://api.celantur.com/v2/')
     parser.add_argument("--number-threads", help="Number of parallel threads", type=int, default=30)
-    parser.add_argument("--recursive", help="Recursively go through the input folder", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--recursive", help="Recursively go through the input folder", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--file-type", help="Select file type to anonymise", action="extend", nargs="+", type=str)
     return parser
 

@@ -8,6 +8,7 @@ import logging
 import os 
 import queue
 import argparse
+import mimetypes
 
 
 TASKS_PER_AUTHENTICATION = 50 # Number of tasks before re-authentication
@@ -126,7 +127,8 @@ def load_image(file_path: str):
     logger.error(f'Could not read image: {e}')
 
 
-def create_task(anonymisation_configuration: str, auth_token: str):
+def create_task(anonymisation_configuration: str, auth_token: str, mime_type: str):
+  anonymisation_configuration["mime-type"] = mime_type  
   response = requests.post(ENDPOINT_TASK, data=json.dumps(anonymisation_configuration), headers={'Authorization': auth_token})
 
   if response.status_code == 200:
@@ -210,7 +212,8 @@ def run_test(input_queue: queue.Queue, output_folder: str, anonymisation_configu
   global auth_token, total_count
   while not input_queue.empty():
     input_root_path, relative_file_path = input_queue.get()
-    task_id, upload_url = create_task(anonymisation_configuration, auth_token)
+    mime_type = mimetypes.guess_type(file_path)[0]
+    task_id, upload_url = create_task(anonymisation_configuration, auth_token, mime_type)
     input_file_path = os.path.join(input_root_path, relative_file_path)
     output_file_path = os.path.join(output_folder, relative_file_path)
     if upload_image(input_file_path, upload_url):

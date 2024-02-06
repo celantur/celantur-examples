@@ -29,8 +29,6 @@ def v1_upload_async(host, port, file_path, params, file_mime, scheme="http"):
         headers={"x-is-async": "1"}
     )
 
-    sleep(1)
-
     logging.debug("Received response (%s) for \"%s\"", resp.status_code, f"/{endpoint}")
     if 200 <= resp.status_code < 400:
         return resp.json()["id"]

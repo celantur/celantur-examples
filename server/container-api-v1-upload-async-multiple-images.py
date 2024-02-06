@@ -2,6 +2,7 @@
 import logging
 import os
 from logging import getLevelName
+from os import makedirs
 from os.path import join, basename
 from sys import argv
 from time import sleep
@@ -85,6 +86,8 @@ def main(files: list, params: dict, mime_type):
     port = os.environ.get("CELANTUR_PORT") or 7000
     polling_retry_sec = os.environ.get("CELANTUR_POLLING_RETRY") or 3
     debug_level = getLevelName(os.environ.get("CELANTUR_DEBUG_LEVEL") or "INFO")
+
+    makedirs(folder, exist_ok=True)
 
     # Logging details about run
     log_details(host, port, folder, files, debug_level)

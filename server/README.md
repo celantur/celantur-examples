@@ -12,7 +12,7 @@
 > [!NOTE]
 > This functionality is available starting from `24.02.2` version of Container API
 
-The examples are excessive but split on functions that could be easily copied and accommodated for your needs.
+The examples are split in functions that can be easily copied and accommodated for your needs.
 
 Before using the examples, make sure you have installed dependencies from [requirements.txt](server/requirements.txt)
 ```shell

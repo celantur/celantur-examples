@@ -1,0 +1,7 @@
+{
+    "anonymization-method": "blur", 
+    "face": true,
+    "license-plate": true,
+    "format": "whole",
+    "quality": 90
+}

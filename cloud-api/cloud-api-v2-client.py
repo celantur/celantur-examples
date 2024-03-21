@@ -8,6 +8,7 @@ import logging
 import os 
 import queue
 import argparse
+import mimetypes
 
 
 TASKS_PER_AUTHENTICATION = 50 # Number of tasks before re-authentication
@@ -15,6 +16,8 @@ SLEEP_TIME = 10.0 # seconds wait time between querying request
 MAX_CHECK_STATUS = 1000 # Retry 1000 times to check status before stopping
 USERNAME: str
 PASSWORD: str
+EXTENSIONS = ['.jpg', '.jpeg', '.png']
+
 
 def parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -27,6 +30,8 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("-c", "--configuration", help="Anonymisation configuration as JSON file", required=True)
     parser.add_argument("-e", "--endpoint", help="Celantur Cloud API v2 endpoint", default='https://api.celantur.com/v2/')
     parser.add_argument("--number-threads", help="Number of parallel threads", type=int, default=30)
+    parser.add_argument("--recursive", help="Recursively go through the input folder", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--file-type", help="Select file type to anonymise", action="extend", nargs="+", type=str)
     return parser
 
 
@@ -68,25 +73,26 @@ def setup_logger(log_dir='logs'):
 logger = setup_logger()
 
 
-def get_files_from_(root_path: str, relative_path: str = "") -> str:
+def get_files_from_(root_path: str, relative_path: str, extensions: [str], recursive: bool) -> str:
     path = os.path.join(root_path, relative_path)
-    extensions = ['.jpg', '.jpeg', '.png']
     
     try:
       for file in os.scandir(path):
-          if os.path.isfile(file) and os.path.splitext(file)[1].lower() in extensions:
+          if file.is_file() and os.path.splitext(file.name)[1].lower() in extensions:
               yield os.path.join(relative_path, file.name)
-          elif os.path.isdir(file):
-              yield from get_files_from_(root_path, os.path.join(relative_path, file.name))
+          elif recursive and file.is_dir():
+              yield from get_files_from_(root_path, os.path.join(relative_path, file.name), extensions, recursive)
 
     except FileNotFoundError as e:
        logger.error(e)
        raise SystemExit(-1)
-def get_files_without_overwrite_from_(root_input_path: str, root_output_path: str, input_queue: queue.Queue):
-    """
+    
+    
+def get_files_without_overwrite_from_(root_input_path: str, root_output_path: str, input_queue: queue.Queue, recursive: bool, extensions: [str]):
+    """"""  """
     Put input file paths into the queue
     """
-    for file_path in get_files_from_(root_input_path):
+    for file_path in get_files_from_(root_input_path, "", extensions, recursive):
         output_path = os.path.join(root_output_path, file_path)
         if os.path.exists(output_path):
             logger.info(f"Skip {file_path} because {output_path} already exists.")
@@ -94,7 +100,6 @@ def get_files_without_overwrite_from_(root_input_path: str, root_output_path: st
            input_queue.put((root_input_path, file_path))
            logger.debug(f"Put into file queue: {file_path}")
            
-
 
 def authenticate():
   data = {'username': USERNAME, 'password': PASSWORD}
@@ -111,7 +116,6 @@ def authenticate():
      raise SystemExit(-1)
      
 
-
 def load_image(file_path: str):
   try:
     image_file = open(file_path,'rb')
@@ -123,7 +127,8 @@ def load_image(file_path: str):
     logger.error(f'Could not read image: {e}')
 
 
-def create_task(anonymisation_configuration: str, auth_token: str):
+def create_task(anonymisation_configuration: str, auth_token: str, mime_type: str):
+  anonymisation_configuration["mime-type"] = mime_type  
   response = requests.post(ENDPOINT_TASK, data=json.dumps(anonymisation_configuration), headers={'Authorization': auth_token})
 
   if response.status_code == 200:
@@ -207,7 +212,8 @@ def run_test(input_queue: queue.Queue, output_folder: str, anonymisation_configu
   global auth_token, total_count
   while not input_queue.empty():
     input_root_path, relative_file_path = input_queue.get()
-    task_id, upload_url = create_task(anonymisation_configuration, auth_token)
+    mime_type = mimetypes.guess_type(file_path)[0]
+    task_id, upload_url = create_task(anonymisation_configuration, auth_token, mime_type)
     input_file_path = os.path.join(input_root_path, relative_file_path)
     output_file_path = os.path.join(output_folder, relative_file_path)
     if upload_image(input_file_path, upload_url):
@@ -231,6 +237,24 @@ def create_thread(*run_test_args) -> threading.Thread:
   return thread
 
 
+def normalise_file_extensions(extensions: [str]):
+    """Ensure that the file extensions start with a dot and are lowercase."""
+    if extensions is None or []:
+       return EXTENSIONS
+    else:
+      dotted_extensions = []
+      for e in extensions:
+          lowercase = e.lower()
+          if not lowercase.startswith('.'):
+             lowercase = "." + lowercase
+          if lowercase not in EXTENSIONS:
+             raise AttributeError(f"File type {lowercase} not supported!")
+          else:
+             dotted_extensions.append(lowercase)
+    
+      return dotted_extensions
+   
+
 if __name__ == "__main__":
     total_count = 0
     # Measure the execution time
@@ -238,6 +262,7 @@ if __name__ == "__main__":
     args = parser().parse_args()
     endpoint: str = args.endpoint.rstrip('/')
     configuration: dict = read_configuration_file(args.configuration)
+    dotted_extensions = normalise_file_extensions(args.file_type)
 
     ENDPOINT_LOGIN = f'{endpoint}/signin/'
     ENDPOINT_TASK = f'{endpoint}/task/'
@@ -248,7 +273,9 @@ if __name__ == "__main__":
     logger.info(f"Start Cloud API v2 Client with {args.number_threads} threads.")
 
     input_queue = queue.Queue(maxsize=100)
-    file_reader = threading.Thread(name="ReadInput", target=get_files_without_overwrite_from_, args=(args.input, args.output, input_queue))
+    file_reader = threading.Thread(name="ReadInput", target=get_files_without_overwrite_from_, 
+                                   args=(args.input, args.output, input_queue, args.recursive, dotted_extensions)
+                                  )
     file_reader.start()
 
     auth_token = authenticate()

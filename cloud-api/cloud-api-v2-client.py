@@ -128,7 +128,8 @@ def load_image(file_path: str):
 
 
 def create_task(anonymisation_configuration: str, auth_token: str, mime_type: str):
-  anonymisation_configuration["mime-type"] = mime_type  
+  # Currently mime type checking not deployed yet
+  # anonymisation_configuration["mime-type"] = mime_type  
   response = requests.post(ENDPOINT_TASK, data=json.dumps(anonymisation_configuration), headers={'Authorization': auth_token})
 
   if response.status_code == 200:
@@ -140,7 +141,7 @@ def create_task(anonymisation_configuration: str, auth_token: str, mime_type: st
     logger.info(f"Task {task_id} created.")
     return (task_id, upload_url)
   else:
-    logger.error(f'Creating task failed (Status {response.status_code}): {response.text}')
+    raise RuntimeError(f'Creating task failed (Status {response.status_code}): {response.text}')
 
 
 def get_task_status(task_id: str, auth_token: str) -> str:
@@ -212,9 +213,9 @@ def run_test(input_queue: queue.Queue, output_folder: str, anonymisation_configu
   global auth_token, total_count
   while not input_queue.empty():
     input_root_path, relative_file_path = input_queue.get()
-    mime_type = mimetypes.guess_type(file_path)[0]
-    task_id, upload_url = create_task(anonymisation_configuration, auth_token, mime_type)
     input_file_path = os.path.join(input_root_path, relative_file_path)
+    mime_type = mimetypes.guess_type(input_file_path)[0]
+    task_id, upload_url = create_task(anonymisation_configuration, auth_token, mime_type)
     output_file_path = os.path.join(output_folder, relative_file_path)
     if upload_image(input_file_path, upload_url):
       download_image(output_file_path, task_id, auth_token, SLEEP_TIME)

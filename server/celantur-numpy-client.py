@@ -65,7 +65,7 @@ def process_image(image: np.ndarray, trial=0) -> np.ndarray:
 if __name__ == "__main__":
 
     for filename in os.listdir(args.input):
-        if filename.endswith(".png") or filename.endswith(".jpg"):
+        if os.path.splitext(filename)[1].lower() in [".png", ".jpeg", ".jpg"]:
             INPUT = os.path.join(args.input, filename)
             OUTPUT = os.path.join(args.output, filename)
             print(f"{now().strftime('%H:%M:%S,%f')} - Load image {INPUT}.")

@@ -13,7 +13,7 @@ parser.add_argument("--port", help="Port number", type=int, default=9999)
 args = parser.parse_args()
 
 for filename in os.listdir(args.input):
-    if filename.endswith(".png") or filename.endswith(".jpg"):
+    if os.path.splitext(filename)[1].lower() in [".jpeg", ".jpg"]:
         file = os.path.join(args.input, filename)
         now = datetime.now
         size = os.path.getsize(file)

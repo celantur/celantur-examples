@@ -26,8 +26,9 @@ for filename in os.listdir(args.input):
                 print(f"{now().strftime('%H:%M:%S,%f')} - Sent {r} bytes to server.")
             s.shutdown(socket.SHUT_WR)
             output_buffer = s.makefile('rb')
-            image = PIL.Image.open(output_buffer)
-            print(f"{now().strftime('%H:%M:%S,%f')} - Save image to {os.path.join(args.output, filename)}.")
-            image.save(os.path.join(args.output, filename))
+            output_file = os.path.join(args.output, filename)
+            print(f"{now().strftime('%H:%M:%S,%f')} - Save image to {output_file}.")
+            with open(output_file, "wb") as f:
+                f.write(output_buffer.read())
 
 print("DONE")

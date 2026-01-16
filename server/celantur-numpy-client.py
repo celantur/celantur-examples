@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import socket
 from datetime import datetime
-import cv2
+from PIL import Image
 import numpy as np
 from io import BytesIO
 import argparse
@@ -66,13 +66,16 @@ if __name__ == "__main__":
 
     for filename in os.listdir(args.input):
         if os.path.splitext(filename)[1].lower() in [".png", ".jpeg", ".jpg"]:
-            INPUT = os.path.join(args.input, filename)
-            OUTPUT = os.path.join(args.output, filename)
-            print(f"{now().strftime('%H:%M:%S,%f')} - Load image {INPUT}.")
-            orig_image = cv2.imread(os.path.join(args.input, filename))
-            # print(f"Iteration {filename}:".upper())
+            input_path = os.path.join(args.input, filename)
+            output_path = os.path.join(args.output, filename)
+            print(f"{now().strftime('%H:%M:%S,%f')} - Load image {input_path}.")
+            orig_image = Image.open(os.path.join(args.input, filename))
+            orig_image = np.array(orig_image)
+            orig_image = orig_image[:, :, ::-1]  # RGB to BGR (CV2 format)
             image = process_image(orig_image)
-            print(f"{now().strftime('%H:%M:%S,%f')} - Save image to {OUTPUT}.")
-            cv2.imwrite(OUTPUT, image)
-            print(f"{now().strftime('%H:%M:%S,%f')} - DONE")
+            print(f"{now().strftime('%H:%M:%S,%f')} - Save image to {output_path}.")
+            image = image[:, :, ::-1]  # BGR to RGB
+            image = Image.fromarray(image)
+            image.save(output_path)
+    print(f"{now().strftime('%H:%M:%S,%f')} - DONE")
 

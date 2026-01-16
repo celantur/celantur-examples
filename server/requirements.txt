@@ -1,1 +1,2 @@
 requests
+Pillow  # required for TCP server array mode (celantur-numpy-client.py)

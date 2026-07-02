@@ -4,8 +4,8 @@ import requests
 import time
 import json
 import threading
-import logging 
-import os 
+import logging
+import os
 import queue
 import argparse
 import mimetypes
@@ -16,7 +16,7 @@ SLEEP_TIME = 10.0 # seconds wait time between querying request
 MAX_CHECK_STATUS = 1000 # Retry 1000 times to check status before stopping
 USERNAME: str
 PASSWORD: str
-EXTENSIONS = ['.jpg', '.jpeg', '.png']
+EXTENSIONS = ['.jpg', '.jpeg', '.png', '.mp4', '.avi']
 
 
 def parser() -> argparse.ArgumentParser:
@@ -75,7 +75,7 @@ logger = setup_logger()
 
 def get_files_from_(root_path: str, relative_path: str, extensions: [str], recursive: bool) -> str:
     path = os.path.join(root_path, relative_path)
-    
+
     try:
       for file in os.scandir(path):
           if file.is_file() and os.path.splitext(file.name)[1].lower() in extensions:
@@ -86,8 +86,8 @@ def get_files_from_(root_path: str, relative_path: str, extensions: [str], recur
     except FileNotFoundError as e:
        logger.error(e)
        raise SystemExit(-1)
-    
-    
+
+
 def get_files_without_overwrite_from_(root_input_path: str, root_output_path: str, input_queue: queue.Queue, recursive: bool, extensions: [str]):
     """"""  """
     Put input file paths into the queue
@@ -99,7 +99,7 @@ def get_files_without_overwrite_from_(root_input_path: str, root_output_path: st
         else:
            input_queue.put((root_input_path, file_path))
            logger.debug(f"Put into file queue: {file_path}")
-           
+
 
 def authenticate():
   data = {'username': USERNAME, 'password': PASSWORD}
@@ -114,7 +114,7 @@ def authenticate():
   except:
      logger.error(f'Login error (Status {response.status_code}): {response.text}')
      raise SystemExit(-1)
-     
+
 
 def load_image(file_path: str):
   try:
@@ -129,12 +129,12 @@ def load_image(file_path: str):
 
 def create_task(anonymisation_configuration: str, auth_token: str, mime_type: str):
   # Currently mime type checking not deployed yet
-  # anonymisation_configuration["mime-type"] = mime_type  
+  # anonymisation_configuration["mime-type"] = mime_type
   response = requests.post(ENDPOINT_TASK, data=json.dumps(anonymisation_configuration), headers={'Authorization': auth_token})
 
   if response.status_code == 200:
     response_body = response.json()
-    
+
     task_id = response_body['task_id']
     upload_url = response_body['upload_url']
 
@@ -148,7 +148,7 @@ def get_task_status(task_id: str, auth_token: str) -> str:
   # stati: new, queued, processing, done or failed
   status_url = f'{ENDPOINT_TASK}{task_id}/status'
 
-  response = requests.get(status_url, headers={'Authorization': auth_token})  
+  response = requests.get(status_url, headers={'Authorization': auth_token})
   if response.status_code == 200:
     response_body = response.json()
     status = response_body['task_status']
@@ -157,13 +157,13 @@ def get_task_status(task_id: str, auth_token: str) -> str:
   else:
     logger.error(f'Getting task status failed (Status {response.status_code}): {response.text}')
     return response.status_code
-  
+
 
 def get_task(task_id: str, auth_token: str):
   # stati: new, queued, processing, done or failed
   task_url = f'{ENDPOINT_TASK}{task_id}'
 
-  response = requests.get(task_url, headers={'Authorization': auth_token})  
+  response = requests.get(task_url, headers={'Authorization': auth_token})
   if response.status_code == 200:
     logger.info(f'GET /task/{task_id} successful.')
     response_body = response.json()
@@ -191,18 +191,20 @@ def download_image(output_file_name: str, task_id: str, auth_token: str, sleep_t
     task_status = get_task_status(task_id, auth_token)
     if task_status == "done":
       break
+    if task_status == "failed":
+      logger.error(f"Task {task_id} failed.")
+      break
     logger.info(f"[Retry {counter}/{MAX_CHECK_STATUS}] Status: {task_status}, sleeping {sleep_time} seconds ...")
     counter += 1
     time.sleep(sleep_time)
   else:
-     if task_status != 'done':
-        logger.warning(f"The task {task_id} did not finish.")
-  
+    logger.warning(f"The task {task_id} did not finish.")
+
   task = get_task(task_id, auth_token)
 
   anonymized_url = task['anonymized_url']
   response = requests.get(anonymized_url)
-  os.makedirs(os.path.dirname(output_file_name), exist_ok=True)  
+  os.makedirs(os.path.dirname(output_file_name), exist_ok=True)
   with open(output_file_name, 'wb') as f:
     f.write(response.content)
   logger.info(f'[image {total_count}] Anonymized image {output_file_name} received.')
@@ -252,9 +254,9 @@ def normalise_file_extensions(extensions: [str]):
              raise AttributeError(f"File type {lowercase} not supported!")
           else:
              dotted_extensions.append(lowercase)
-    
+
       return dotted_extensions
-   
+
 
 if __name__ == "__main__":
     total_count = 0
@@ -269,12 +271,12 @@ if __name__ == "__main__":
     ENDPOINT_TASK = f'{endpoint}/task/'
     USERNAME = args.username
     PASSWORD = args.password
-    
+
 
     logger.info(f"Start Cloud API v2 Client with {args.number_threads} threads.")
 
     input_queue = queue.Queue(maxsize=100)
-    file_reader = threading.Thread(name="ReadInput", target=get_files_without_overwrite_from_, 
+    file_reader = threading.Thread(name="ReadInput", target=get_files_without_overwrite_from_,
                                    args=(args.input, args.output, input_queue, args.recursive, dotted_extensions)
                                   )
     file_reader.start()
@@ -290,4 +292,3 @@ if __name__ == "__main__":
     # Calculate the elapsed time
     elapsed_time = end_time - start_time
     logger.info(f"Completed. It took {int(elapsed_time)} seconds ({elapsed_time//60} minutes)")
-

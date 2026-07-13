@@ -156,10 +156,10 @@ def get_task_status(task_id: str, auth_token: str) -> str:
     return status
   else:
     logger.error(f'Getting task status failed (Status {response.status_code}): {response.text}')
-    return response.status_code
+    return f"{response.status_code}: {response.text}"
 
 
-def get_task(task_id: str, auth_token: str):
+def get_task(task_id: str, auth_token: str) -> dict:
   # stati: new, queued, processing, done or failed
   task_url = f'{ENDPOINT_TASK}{task_id}'
 
@@ -170,7 +170,7 @@ def get_task(task_id: str, auth_token: str):
     return response_body
   else:
     logger.error(f'Getting task faild (Status {response.status_code}): {response.text}')
-    return 0
+    return {}
 
 
 def upload_image(file_path: str, upload_url: str):
@@ -193,7 +193,7 @@ def download_image(output_file_name: str, task_id: str, auth_token: str, sleep_t
       break
     if task_status == "failed":
       logger.error(f"Task {task_id} failed.")
-      break
+      return
     logger.info(f"[Retry {counter}/{MAX_CHECK_STATUS}] Status: {task_status}, sleeping {sleep_time} seconds ...")
     counter += 1
     time.sleep(sleep_time)

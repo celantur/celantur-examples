@@ -7,6 +7,15 @@ const TASKS_PER_AUTHENTICATION = 50; // Number of tasks before re-authentication
 const SLEEP_TIME = 10000; // ms wait time between querying request
 const MAX_CHECK_STATUS = 1000; // Retry 1000 times to check status before stopping
 const EXTENSIONS = ['.jpg', '.jpeg', '.png'];
+const CONTENT_TYPES = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.mp4': 'video/mp4',
+    '.avi': 'video/x-msvideo',
+    '.mov': 'video/quicktime',
+    '.mkv': 'video/x-matroska',
+};
 
 export class CelanturClientParameters {
     constructor(
@@ -119,16 +128,19 @@ export class CelanturCloudAPIClient {
     
     async uploadImage(task) {
         const img = await this.loadImage(task.input_file_path);
-        
+        const contentType = CONTENT_TYPES[path.extname(task.input_file_path).toLowerCase()]
+            || 'application/octet-stream';
+
         const response = await fetch(task.upload_url, {
             method: 'PUT',
+            headers: { 'Content-Type': contentType },
             body: img
         });
         if (!response.ok) {
-            throw new Error(`Image upload failed (Status ${response.status_code}): ${response.text}`);
+            throw new Error(`Image upload failed (Status ${response.status}): ${await response.text()}`);
         }
     
-        console.log(`Uploaded image ${task.input_file_path} successfully.`);
+        console.log(`Uploaded image ${task.input_file_path} successfully (${contentType}).`);
         return true;
       }
     

@@ -175,9 +175,14 @@ def get_task(task_id: str, auth_token: str) -> dict:
 
 def upload_image(file_path: str, upload_url: str):
   img = load_image(file_path)
-  response = requests.put(url=upload_url, data=img)
+  content_type = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+  response = requests.put(
+      url=upload_url,
+      data=img,
+      headers={'Content-Type': content_type},
+  )
   if response.status_code == 200:
-    logger.info(f'Uploaded image {file_path} successfully.')
+    logger.info(f'Uploaded image {file_path} successfully ({content_type}).')
     return True
   else:
     logger.error(f'Image upload failed (Status {response.status_code}): {response.text}')

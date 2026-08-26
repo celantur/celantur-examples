@@ -11,12 +11,17 @@ import argparse
 import mimetypes
 
 
-TASKS_PER_AUTHENTICATION = 50 # Number of tasks before re-authentication
 SLEEP_TIME = 10.0 # seconds wait time between querying request
 MAX_CHECK_STATUS = 1000 # Retry 1000 times to check status before stopping
+TOKEN_REFRESH_MARGIN = 60  # Re-authenticate this many seconds before AccessToken expiry
 USERNAME: str
 PASSWORD: str
-EXTENSIONS = ['.jpg', '.jpeg', '.png', '.mp4', '.avi']
+DEFAULT_EXTENSIONS = ['.jpg', '.jpeg', '.png']
+SUPPORTED_EXTENSIONS = DEFAULT_EXTENSIONS + ['.mp4', '.avi', '.mkv', '.mov']
+
+auth_lock = threading.Lock()
+auth_token: str | None = None
+token_expires_at: float = 0.0
 
 
 def parser() -> argparse.ArgumentParser:
@@ -31,7 +36,7 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument("-e", "--endpoint", help="Celantur Cloud API v2 endpoint", default='https://api.celantur.com/v2/')
     parser.add_argument("--number-threads", help="Number of parallel threads", type=int, default=30)
     parser.add_argument("--recursive", help="Recursively go through the input folder", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--file-type", help="Select file type to anonymise", action="extend", nargs="+", type=str)
+    parser.add_argument("--file-type", help="Select file type to anonymise (default: jpg, jpeg, png)", action="extend", nargs="+", type=str)
     return parser
 
 
@@ -102,18 +107,31 @@ def get_files_without_overwrite_from_(root_input_path: str, root_output_path: st
 
 
 def authenticate():
+  global auth_token, token_expires_at
   data = {'username': USERNAME, 'password': PASSWORD}
-  response = requests.post(ENDPOINT_LOGIN, json=data, headers={'Content-Type':'application/json'})
+  try:
+    response = requests.post(ENDPOINT_LOGIN, json=data, headers={'Content-Type':'application/json'})
+  except requests.exceptions.RequestException as e:
+    logger.error(f'Login connection error: {e}')
+    raise SystemExit(-1)
   resp_dict = response.json()
   try:
     auth_token = resp_dict['AccessToken']
-    # TODO implement logic for token renewal before expiration
-    # expires_in = resp_dict['ExpiresIn']  # 3600s
-    logger.info('Successfully authenticated and token received.')
+    expires_in = int(resp_dict.get('ExpiresIn', 3600))
+    token_expires_at = time.time() + expires_in
+    logger.info(f'Successfully authenticated. Access token expires in {expires_in}s.')
     return auth_token
-  except:
+  except (KeyError, TypeError, ValueError):
      logger.error(f'Login error (Status {response.status_code}): {response.text}')
      raise SystemExit(-1)
+
+
+def get_auth_token() -> str:
+  """Return a valid AccessToken, re-authenticating via /signin when close to expiry."""
+  with auth_lock:
+    if auth_token is None or time.time() >= token_expires_at - TOKEN_REFRESH_MARGIN:
+      return authenticate()
+    return auth_token
 
 
 def load_image(file_path: str):
@@ -127,10 +145,13 @@ def load_image(file_path: str):
     logger.error(f'Could not read image: {e}')
 
 
-def create_task(anonymisation_configuration: str, auth_token: str, mime_type: str):
+def create_task(anonymisation_configuration: str, mime_type: str):
   # Currently mime type checking not deployed yet
   # anonymisation_configuration["mime-type"] = mime_type
-  response = requests.post(ENDPOINT_TASK, data=json.dumps(anonymisation_configuration), headers={'Authorization': auth_token})
+  try:
+    response = requests.post(ENDPOINT_TASK, data=json.dumps(anonymisation_configuration), headers={'Authorization': get_auth_token()})
+  except requests.exceptions.RequestException as e:
+    raise RuntimeError(f'Creating task failed (connection error): {e}') from e
 
   if response.status_code == 200:
     response_body = response.json()
@@ -144,11 +165,16 @@ def create_task(anonymisation_configuration: str, auth_token: str, mime_type: st
     raise RuntimeError(f'Creating task failed (Status {response.status_code}): {response.text}')
 
 
-def get_task_status(task_id: str, auth_token: str) -> str:
+def get_task_status(task_id: str) -> str:
   # stati: new, queued, processing, done or failed
   status_url = f'{ENDPOINT_TASK}{task_id}/status'
 
-  response = requests.get(status_url, headers={'Authorization': auth_token})
+  try:
+    response = requests.get(status_url, headers={'Authorization': get_auth_token()})
+  except requests.exceptions.RequestException as e:
+    logger.error(f'Getting task status failed (connection error): {e}')
+    return f'connection_error: {e}'
+
   if response.status_code == 200:
     response_body = response.json()
     status = response_body['task_status']
@@ -159,11 +185,15 @@ def get_task_status(task_id: str, auth_token: str) -> str:
     return f"{response.status_code}: {response.text}"
 
 
-def get_task(task_id: str, auth_token: str) -> dict:
+def get_task(task_id: str) -> dict:
   # stati: new, queued, processing, done or failed
   task_url = f'{ENDPOINT_TASK}{task_id}'
 
-  response = requests.get(task_url, headers={'Authorization': auth_token})
+  try:
+    response = requests.get(task_url, headers={'Authorization': get_auth_token()})
+  except requests.exceptions.RequestException as e:
+    raise RuntimeError(f'Getting task failed (connection error): {e}') from e
+
   if response.status_code == 200:
     logger.info(f'GET /task/{task_id} successful.')
     response_body = response.json()
@@ -175,11 +205,16 @@ def get_task(task_id: str, auth_token: str) -> dict:
 def upload_image(file_path: str, upload_url: str):
   img = load_image(file_path)
   content_type = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
-  response = requests.put(
-      url=upload_url,
-      data=img,
-      headers={'Content-Type': content_type},
-  )
+  try:
+    response = requests.put(
+        url=upload_url,
+        data=img,
+        headers={'Content-Type': content_type},
+    )
+  except requests.exceptions.RequestException as e:
+    logger.error(f'Image upload failed (connection error): {e}')
+    return False
+
   if response.status_code == 200:
     logger.info(f'Uploaded image {file_path} successfully ({content_type}).')
     return True
@@ -188,11 +223,11 @@ def upload_image(file_path: str, upload_url: str):
     return False
 
 
-def download_image(output_file_name: str, task_id: str, auth_token: str, sleep_time: float):
+def download_image(output_file_name: str, task_id: str, sleep_time: float):
   global total_count
   counter = 1
   while counter < MAX_CHECK_STATUS:
-    task_status = get_task_status(task_id, auth_token)
+    task_status = get_task_status(task_id)
     if task_status == "done":
       break
     if task_status == "failed":
@@ -203,11 +238,15 @@ def download_image(output_file_name: str, task_id: str, auth_token: str, sleep_t
     time.sleep(sleep_time)
   else:
     logger.warning(f"The task {task_id} did not finish.")
+    return
 
-  task = get_task(task_id, auth_token)
+  task = get_task(task_id)
 
   anonymized_url = task['anonymized_url']
-  response = requests.get(anonymized_url)
+  try:
+    response = requests.get(anonymized_url)
+  except requests.exceptions.RequestException as e:
+    raise RuntimeError(f'Downloading anonymized file failed (connection error): {e}') from e
   os.makedirs(os.path.dirname(output_file_name), exist_ok=True)
   with open(output_file_name, 'wb') as f:
     f.write(response.content)
@@ -216,18 +255,19 @@ def download_image(output_file_name: str, task_id: str, auth_token: str, sleep_t
 
 
 def run_test(input_queue: queue.Queue, output_folder: str, anonymisation_configuration: dict):
-  global auth_token, total_count
+  global total_count
   while not input_queue.empty():
     input_root_path, relative_file_path = input_queue.get()
-    input_file_path = os.path.join(input_root_path, relative_file_path)
-    mime_type = mimetypes.guess_type(input_file_path)[0]
-    task_id, upload_url = create_task(anonymisation_configuration, auth_token, mime_type)
-    output_file_path = os.path.join(output_folder, relative_file_path)
-    if upload_image(input_file_path, upload_url):
-      download_image(output_file_path, task_id, auth_token, SLEEP_TIME)
-    total_count += 1
-    if total_count % TASKS_PER_AUTHENTICATION == 0:  # Re-authenticate
-        auth_token = authenticate()
+    try:
+      input_file_path = os.path.join(input_root_path, relative_file_path)
+      mime_type = mimetypes.guess_type(input_file_path)[0]
+      task_id, upload_url = create_task(anonymisation_configuration, mime_type)
+      output_file_path = os.path.join(output_folder, relative_file_path)
+      if upload_image(input_file_path, upload_url):
+        download_image(output_file_path, task_id, SLEEP_TIME)
+      total_count += 1
+    except Exception as e:
+      logger.error(f'Processing {relative_file_path} failed: {e}')
 
 
 def read_configuration_file(file_name: str) -> dict:
@@ -246,15 +286,15 @@ def create_thread(*run_test_args) -> threading.Thread:
 
 def normalise_file_extensions(extensions: [str]):
     """Ensure that the file extensions start with a dot and are lowercase."""
-    if extensions is None or []:
-       return EXTENSIONS
+    if not extensions:
+       return DEFAULT_EXTENSIONS
     else:
       dotted_extensions = []
       for e in extensions:
           lowercase = e.lower()
           if not lowercase.startswith('.'):
              lowercase = "." + lowercase
-          if lowercase not in EXTENSIONS:
+          if lowercase not in SUPPORTED_EXTENSIONS:
              raise AttributeError(f"File type {lowercase} not supported!")
           else:
              dotted_extensions.append(lowercase)
@@ -276,7 +316,6 @@ if __name__ == "__main__":
     USERNAME = args.username
     PASSWORD = args.password
 
-
     logger.info(f"Start Cloud API v2 Client with {args.number_threads} threads.")
 
     input_queue = queue.Queue(maxsize=100)
@@ -285,7 +324,7 @@ if __name__ == "__main__":
                                   )
     file_reader.start()
 
-    auth_token = authenticate()
+    authenticate()
 
     threads = [create_thread(input_queue, args.output, configuration) for _ in range(args.number_threads)]
     for t in threads:

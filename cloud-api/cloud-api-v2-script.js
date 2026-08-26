@@ -49,7 +49,7 @@ const argv = Yargs(hideBin(process.argv))
         default: true,
     },
     fileType: {
-        describe: 'Select file type to anonymize',
+        describe: 'Select file type to anonymize (default: jpg, jpeg, png)',
         type: 'array',
     },
 })

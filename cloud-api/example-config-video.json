@@ -1,0 +1,9 @@
+{
+  "anonymization-method": "blur",
+  "face": true,
+  "license-plate": true,
+  "person": true,
+  "vehicle": true,
+  "format": "whole",
+  "keep-bit-rate": true
+}

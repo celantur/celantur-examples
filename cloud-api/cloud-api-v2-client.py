@@ -169,8 +169,7 @@ def get_task(task_id: str, auth_token: str) -> dict:
     response_body = response.json()
     return response_body
   else:
-    logger.error(f'Getting task faild (Status {response.status_code}): {response.text}')
-    return {}
+    raise RuntimeError(f'Getting task failed (Status {response.status_code}): {response.text}')
 
 
 def upload_image(file_path: str, upload_url: str):

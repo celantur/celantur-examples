@@ -2,6 +2,9 @@
     "anonymization-method": "blur", 
     "face": true,
     "license-plate": true,
-    "format": "whole",
-    "quality": 90
+    "person": true,
+    "vehicle": true,
+    "debug": true,
+    "score": true,
+    "format": "whole"
 }

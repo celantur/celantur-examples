@@ -6,7 +6,17 @@ import { pipeline } from 'stream/promises';
 const TASKS_PER_AUTHENTICATION = 50; // Number of tasks before re-authentication
 const SLEEP_TIME = 10000; // ms wait time between querying request
 const MAX_CHECK_STATUS = 1000; // Retry 1000 times to check status before stopping
-const EXTENSIONS = ['.jpg', '.jpeg', '.png'];
+const DEFAULT_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
+const SUPPORTED_EXTENSIONS = [...DEFAULT_EXTENSIONS, '.mp4', '.avi', '.mkv', '.mov'];
+const CONTENT_TYPES = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.mp4': 'video/mp4',
+    '.avi': 'video/x-msvideo',
+    '.mov': 'video/quicktime',
+    '.mkv': 'video/x-matroska',
+};
 
 export class CelanturClientParameters {
     constructor(
@@ -119,16 +129,19 @@ export class CelanturCloudAPIClient {
     
     async uploadImage(task) {
         const img = await this.loadImage(task.input_file_path);
-        
+        const contentType = CONTENT_TYPES[path.extname(task.input_file_path).toLowerCase()]
+            || 'application/octet-stream';
+
         const response = await fetch(task.upload_url, {
             method: 'PUT',
+            headers: { 'Content-Type': contentType },
             body: img
         });
         if (!response.ok) {
-            throw new Error(`Image upload failed (Status ${response.status_code}): ${response.text}`);
+            throw new Error(`Image upload failed (Status ${response.status}): ${await response.text()}`);
         }
     
-        console.log(`Uploaded image ${task.input_file_path} successfully.`);
+        console.log(`Uploaded image ${task.input_file_path} successfully (${contentType}).`);
         return true;
       }
     
@@ -211,7 +224,7 @@ export class CelanturCloudAPIClient {
     // Ensure that the file extensions start with a dot and are lowercase.
     normalizeExtensions(extensions) {
         if (!extensions || extensions.length === 0) {
-            return EXTENSIONS;
+            return DEFAULT_EXTENSIONS;
         }
         else {
             let dottedExtensions = [];
@@ -220,7 +233,7 @@ export class CelanturCloudAPIClient {
                 if (!lowercase.startsWith('.')) {
                     lowercase = '.' + lowercase;
                 }
-                if (!EXTENSIONS.includes(lowercase)) {
+                if (!SUPPORTED_EXTENSIONS.includes(lowercase)) {
                     throw new Error(`File type ${lowercase} not supported!`);
                 } else {
                     dottedExtensions.push(lowercase);

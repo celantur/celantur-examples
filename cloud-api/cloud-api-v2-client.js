@@ -218,6 +218,7 @@ export class CelanturCloudAPIClient {
             return JSON.parse(data);
         } catch (err) {
             console.error('Error reading the file:', err);
+            throw err;
         }
     }
     
@@ -261,7 +262,7 @@ export class CelanturCloudAPIClient {
             }
         } catch (err) {
             console.error(err);
-            process.exit(-1);
+            throw err;
         }
     }
     
@@ -308,7 +309,7 @@ export class CelanturCloudAPIClient {
             return authToken;
         } catch (err) {
             console.error(err.message);
-            process.exit(-1);
+            throw err;
         }
     }
     

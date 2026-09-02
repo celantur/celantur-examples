@@ -12,3 +12,11 @@
 5. Run script: <br /> 
    `python3 cloud-api-v2-client.py -u $USERNAME -p $PASSWORD -i input/ -o output/ -c example-config.json` <br />
    (you need to replace `$USERNAME` and `$PASSWORD` with your actual passwords.)
+
+### Node.js client
+
+6. Install Node dependencies (`yocto-queue`, `yargs`) and run:
+
+   `node cloud-api-v2-script.js -u $USERNAME -p $PASSWORD -i input/ -o output/ -c example-config.json`
+
+Fatal errors (unreadable input folder, invalid configuration file, or failed login) print a message and exit with code 1. If a single file fails to upload or download, that file is logged and the remaining files continue.

@@ -94,26 +94,31 @@ export class CelanturCloudAPIClient {
             processingTasks.push(this.runTask(this.#inputQueue.dequeue()));
         }
 
-        Promise.all(processingTasks).then(() => {
-            const endTime = Date.now();
-            console.info(
-                `Completed. It took ${Math.floor((endTime - startTime) / 1000)} seconds (${Math.floor((endTime - startTime) / 60000)} minutes)`
-            );
-        });
+        await Promise.all(processingTasks);
+        const endTime = Date.now();
+        console.info(
+            `Completed. It took ${Math.floor((endTime - startTime) / 1000)} seconds (${Math.floor((endTime - startTime) / 60000)} minutes)`
+        );
     }
 
     async runTask(taskFile) {
-        const taskData = await this.createTask();
-        taskData.input_file_path = path.join(taskFile.rootInputPath, taskFile.relFilePath);
-        taskData.output_file_path = path.join(this.#outputFolder, taskFile.relFilePath);
-        
-        if (await this.uploadImage(taskData)) {
-            await this.downloadImage(taskData);
-            this.#totalCount++;
-    
-            if (this.#totalCount % TASKS_PER_AUTHENTICATION == 0) this.#authToken = await this.authenticate(); // re-authenticate
+        try {
+            const taskData = await this.createTask();
+            taskData.input_file_path = path.join(taskFile.rootInputPath, taskFile.relFilePath);
+            taskData.output_file_path = path.join(this.#outputFolder, taskFile.relFilePath);
+
+            if (await this.uploadImage(taskData)) {
+                await this.downloadImage(taskData);
+                this.#totalCount++;
+            }
+        } catch (err) {
+            console.error(`Processing ${taskFile.relFilePath} failed: ${err.message}`);
+            return;
         }
-    
+
+        if (this.#totalCount > 0 && this.#totalCount % TASKS_PER_AUTHENTICATION === 0) {
+            this.#authToken = await this.authenticate();
+        }
     }
 
     async loadImage(path) {
@@ -218,6 +223,7 @@ export class CelanturCloudAPIClient {
             return JSON.parse(data);
         } catch (err) {
             console.error('Error reading the file:', err);
+            throw err;
         }
     }
     
@@ -261,7 +267,7 @@ export class CelanturCloudAPIClient {
             }
         } catch (err) {
             console.error(err);
-            process.exit(-1);
+            throw err;
         }
     }
     
@@ -308,7 +314,7 @@ export class CelanturCloudAPIClient {
             return authToken;
         } catch (err) {
             console.error(err.message);
-            process.exit(-1);
+            throw err;
         }
     }
     

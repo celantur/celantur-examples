@@ -57,5 +57,8 @@ const argv = Yargs(hideBin(process.argv))
 .alias('help', 'h')
 .argv;
 
-let client = new CelanturCloudAPIClient(argv)
-client.run();        
+const client = new CelanturCloudAPIClient(argv);
+client.run().catch((err) => {
+    console.error(err.message || err);
+    process.exit(1);
+});
